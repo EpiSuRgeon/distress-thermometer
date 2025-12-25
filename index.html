@@ -240,6 +240,58 @@
         // Update plan when name changes
         mrdInput.addEventListener('input', generateCarePlan);
         nameInput.addEventListener('input', generateCarePlan);
+
+        /**
+ * OFFLINE AUTO-SYNC ENGINE
+ * Automatically detects internet restoration and pushes queued data.
+ */
+
+// 1. Listen for the 'online' event
+window.addEventListener('online', async () => {
+    console.log("Internet connection restored. Starting Auto-Sync...");
+    await processOfflineQueue();
+});
+
+// 2. Function to process the queue
+async function processOfflineQueue() {
+    const queue = JSON.parse(localStorage.getItem('offline_sync') || "[]");
+    
+    if (queue.length === 0) return;
+
+    console.log(`Found ${queue.length} pending records to sync.`);
+    const remainingQueue = [];
+
+    for (const payload of queue) {
+        try {
+            // Attempt to post to Google Apps Script
+            const response = await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(payload)
+            });
+            
+            console.log(`Successfully synced record for: ${payload.patientName}`);
+        } catch (error) {
+            console.error("Failed to sync a record, keeping it in queue.", error);
+            remainingQueue.push(payload); // Keep it to try again later
+        }
+    }
+
+    // 3. Update localStorage with only the items that failed (or clear if all succeeded)
+    if (remainingQueue.length > 0) {
+        localStorage.setItem('offline_sync', JSON.stringify(remainingQueue));
+    } else {
+        localStorage.removeItem('offline_sync');
+        alert("Success: All offline clinical assessments have been synced to Google Chat.");
+    }
+}
+
+// 4. Initial check when app opens
+window.addEventListener('load', () => {
+    if (navigator.onLine) {
+        processOfflineQueue();
+    }
+});
     </script>
 </body>
 </html>
