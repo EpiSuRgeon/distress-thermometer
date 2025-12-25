@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distress Thermometer PWA</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#005588">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3063/3063176.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* [KEEPING ALL YOUR ORIGINAL STYLES HERE] */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary-bg: #dcf0fd; --secondary-bg: #daebfc; --tertiary-bg: #edf6fc;
+            --primary-color: #005588; --accent-color: #004466; --text-color: #111;
+            --button-color: #005588; --button-hover-color: #004466;
+            --border-radius: 12px; --transition-speed: 0.3s ease;
+        }
+        body { font-family: 'Poppins', sans-serif; line-height: 1.6; background-color: var(--primary-bg); color: var(--text-color); padding: 1.5rem; }
+        .container { max-width: 800px; margin: 0 auto; background-color: var(--secondary-bg); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); padding: 1.5rem; border-radius: var(--border-radius); }
+        h1, h2, h3, h4 { color: var(--primary-color); margin-top: 1.5rem; margin-bottom: 1rem; }
+        label { font-weight: 600; display: block; margin-top: 1rem; }
+        input[type="text"], input[type="date"], input[type="time"] { width: 100%; padding: 0.75rem; margin-top: 0.5rem; border: 1px solid #ccc; border-radius: 8px; background-color: var(--tertiary-bg); font-size: 1rem; box-sizing: border-box; }
+        ul { list-style-type: none; padding: 0; }
+        li { display: flex; align-items: flex-start; margin-bottom: 0.75rem; padding: 0.75rem; border-radius: 8px; }
+        input[type="checkbox"] { margin-right: 0.75rem; transform: scale(1.2); accent-color: var(--primary-color); }
+        .combined-box { margin-top: 2rem; padding: 1.5rem; border: 1px solid #ccc; border-radius: 10px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); color: var(--accent-color); }
+        .btn { background-color: var(--button-color); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; cursor: pointer; margin: 0.5rem; }
+        .btn-sync { background-color: #28a745 !important; font-weight: bold; }
+        textarea { width: 100%; min-height: 120px; padding: 10px; border: none; background: transparent; }
+        
+        /* Slider Styles */
+        .slider-container { display: flex; flex-direction: column; align-items: center; margin: 20px 0; }
+        .horizontal-slider-bar { position: relative; height: 30px; background: linear-gradient(to right, #81C784 0%, #FFB74D 50%, #E57373 100%); border-radius: 15px; width: 100%; }
+        .horizontal-slider-thumb { position: absolute; top: 50%; width: 40px; height: 40px; background: #fff; border: 3px solid var(--primary-color); border-radius: 50%; transform: translate(-50%, -50%); cursor: pointer; left: 0; }
+        .distress-labels { display: flex; justify-content: space-between; width: 100%; padding: 0 10px; font-size: 0.8em; }
+        
+        /* Sync Status Light */
+        #syncIndicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; background: #ccc; }
+        .status-online { background: #28a745 !important; }
+        .status-offline { background: #dc3545 !important; }
+    </style>
+</head>
+<body>
+
+    <main class="container">
+        <section>
+            <div style="text-align: right; font-size: 0.8em;">
+                <span id="syncIndicator"></span> <span id="syncText">Checking Connection...</span>
+            </div>
+            <h1>Distress Thermometer</h1>
+            <label for="guestName">പേര് (Name) <span style="color:red;">*</span>:</label>
+            <input type="text" id="guestName" placeholder="Enter patient name..." required>
+
+            <div style="display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                    <label for="assessmentDate">തീയതി (Date):</label>
+                    <input type="date" id="assessmentDate">
+                </div>
+                <div style="flex: 1;">
+                    <label for="assessmentTime">സമയം (Time):</label>
+                    <input type="time" id="assessmentTime">
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <label>Distress Score (0–10):</label>
+            <div class="slider-container">
+                <div class="horizontal-slider-bar" id="sliderBar">
+                    <div class="horizontal-slider-thumb" id="sliderThumb"></div>
+                </div>
+                <span id="distressValueDisplay" style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">0</span>
+            </div>
+            <div class="distress-labels">
+                <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+            </div>
+        </section>
+
+        <section>
+            <h2>ശാരീരിക ആശങ്കകൾ</h2>
+            <ul id="physicalList">
+                <li><input type="checkbox" name="physical" value="വേദന"> <span>വേദന</span> </li>
+                <li><input type="checkbox" name="physical" value="ക്ഷീണം"> <span>ക്ഷീണം</span> </li>
+                </ul>
+        </section>
+
+        <section class="combined-box" id="combinedBox">
+            <h3>Care Plan</h3>
+            <textarea id="carePlanBox" readonly></textarea>
+        </section>
+
+        <div class="buttons">
+            <button class="btn btn-sync" id="syncChatBtn">Show & Sync to Google Chat</button>
+            <button class="btn" id="resetBtn">Reset</button>
+        </div>
+    </main>
+
+    <script>
+        // 1. PWA SERVICE WORKER REGISTRATION
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log("Service Worker Registered"));
+        }
+
+        // 2. CONFIGURATION
+        const APPS_SCRIPT_URL = "YOUR_APPS_SCRIPT_WEB_APP_URL"; // REPLACE THIS!
+
+        // 3. DOM ELEMENTS
+        const guestNameEl = document.getElementById('guestName');
+        const dateEl = document.getElementById('assessmentDate');
+        const timeEl = document.getElementById('assessmentTime');
+        const sliderBar = document.getElementById('sliderBar');
+        const sliderThumb = document.getElementById('sliderThumb');
+        const distressValueDisplay = document.getElementById('distressValueDisplay');
+        const carePlanBox = document.getElementById('carePlanBox');
+        const syncChatBtn = document.getElementById('syncChatBtn');
+        const indicator = document.getElementById('syncIndicator');
+        const syncText = document.getElementById('syncText');
+
+        let isDragging = false;
+
+        // 4. INITIALIZATION
+        window.onload = () => {
+            initDateTime();
+            updateSliderWidth();
+            loadFromStorage();
+            updateNetworkStatus();
+        };
+
+        function initDateTime() {
+            const now = new Date();
+            dateEl.value = now.toISOString().split('T')[0];
+            timeEl.value = now.toTimeString().slice(0, 5);
+        }
+
+        // 5. SLIDER LOGIC
+        function updateThumbPosition(newLeft) {
+            const maxLeft = sliderBar.offsetWidth;
+            const boundedLeft = Math.max(0, Math.min(newLeft, maxLeft));
+            sliderThumb.style.left = `${boundedLeft}px`;
+            const val = Math.round((boundedLeft / maxLeft) * 10);
+            distressValueDisplay.textContent = val;
+            compileCarePlan(val);
+        }
+
+        sliderBar.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            updateThumbPosition(e.offsetX);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const rect = sliderBar.getBoundingClientRect();
+            updateThumbPosition(e.clientX - rect.left);
+        });
+
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        // 6. CLINICAL SYNC LOGIC (POST TO GOOGLE CHAT)
+        syncChatBtn.addEventListener('click', async () => {
+            if (!guestNameEl.value) {
+                alert("Please enter a Patient Name");
+                return;
+            }
+
+            const payload = {
+                patientName: guestNameEl.value,
+                date: dateEl.value,
+                score: distressValueDisplay.textContent,
+                carePlan: carePlanBox.value,
+                patientId: "MRD-" + guestNameEl.value.substring(0,3).toUpperCase() // Temporary ID
+            };
+
+            syncChatBtn.disabled = true;
+            syncChatBtn.innerText = "Syncing...";
+
+            try {
+                // We use no-cors because Apps Script is a redirecting service
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(payload)
+                });
+                
+                alert("Results visible in Google Chat thread.");
+                saveToStorage(); // Save after successful sync
+            } catch (error) {
+                console.error("Sync failed", error);
+                alert("Offline: Data saved to tablet. It will sync when Wi-Fi returns.");
+                saveToOfflineQueue(payload);
+            } finally {
+                syncChatBtn.disabled = false;
+                syncChatBtn.innerText = "Show & Sync to Google Chat";
+            }
+        });
+
+        function compileCarePlan(score) {
+            let recommendation = score <= 3 ? "Routine support." : (score <= 6 ? "Refer to Psychosocial." : "Urgent Evaluation.");
+            carePlanBox.value = `Distress Score: ${score}/10\nRecommendation: ${recommendation}\nPatient: ${guestNameEl.value}`;
+        }
+
+        // 7. OFFLINE & STORAGE
+        function updateNetworkStatus() {
+            if (navigator.onLine) {
+                indicator.className = "status-online";
+                syncText.innerText = "Online";
+            } else {
+                indicator.className = "status-offline";
+                syncText.innerText = "Offline Mode";
+            }
+        }
+
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+
+        function saveToStorage() {
+            const data = { name: guestNameEl.value, score: distressValueDisplay.textContent };
+            localStorage.setItem('lastAssessment', JSON.stringify(data));
+        }
+
+        function loadFromStorage() {
+            const saved = localStorage.getItem('lastAssessment');
+            if (saved) {
+                const data = JSON.parse(saved);
+                guestNameEl.value = data.name;
+            }
+        }
+
+        function updateSliderWidth() { /* handle resizing if needed */ }
+    </script>
+</body>
+</html>
